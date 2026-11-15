@@ -2,6 +2,8 @@
 import { useState } from "react";
 import "./App.css";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
 function App() {
   const [file, setFile] = useState(null);
   const [question, setQuestion] = useState("");
@@ -54,7 +56,7 @@ async function handleSubmit(event) {
     formData.append("pdf", file);
     formData.append("question", question.trim());
 
-    const response = await fetch("/api/pdf/ask", {
+    const response = await fetch(`${API_BASE_URL}/api/pdf/ask`, {
       method: "POST",
       body: formData,
     });

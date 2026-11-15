@@ -9,6 +9,36 @@ const Groq = require("groq-sdk");
 const app = express();
 app.use(express.json());
 
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+
+  if (req.method === "OPTIONS") {
+    if (origin && !allowedOrigins.includes(origin)) {
+      return res.sendStatus(403);
+    }
+
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 let embeddingPipeline;
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -470,6 +500,7 @@ function cosineSimilarity(a, b) {
   );
 }
 
-app.listen(3000, () => {
-  console.log("Groq agent running on port 3000");
+const port = process.env.PORT || 3000;
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Groq agent running on port ${port}`);
 });
