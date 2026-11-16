@@ -295,3 +295,116 @@ footer {
     gap: 18px;
   }
 }
+/* AI answer formatting */
+.answer-markdown {
+  color: #273449;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.answer-markdown h1,
+.answer-markdown h2,
+.answer-markdown h3,
+.answer-markdown h4 {
+  color: #172554;
+  line-height: 1.35;
+  margin: 24px 0 12px;
+}
+
+.answer-markdown h1 {
+  font-size: 25px;
+}
+
+.answer-markdown h2 {
+  font-size: 21px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.answer-markdown h3 {
+  font-size: 17px;
+}
+
+.answer-markdown p {
+  margin: 10px 0;
+}
+
+.answer-markdown ul,
+.answer-markdown ol {
+  padding-left: 24px;
+  margin: 12px 0 18px;
+}
+
+.answer-markdown li {
+  margin-bottom: 7px;
+}
+
+.answer-markdown strong {
+  color: #172554;
+  font-weight: 700;
+}
+
+.answer-markdown blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid #6366f1;
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.answer-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 22px;
+  font-size: 14px;
+}
+
+.answer-markdown th,
+.answer-markdown td {
+  border: 1px solid #e2e8f0;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.answer-markdown th {
+  background: #f1f5f9;
+  color: #172554;
+  font-weight: 700;
+}
+
+.answer-markdown tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.answer-markdown a {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.answer-markdown code {
+  background: #f1f5f9;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.answer-markdown pre {
+  overflow-x: auto;
+  padding: 14px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+@media (max-width: 600px) {
+  .answer-markdown table {
+    display: block;
+    overflow-x: auto;
+    white-space: normal;
+  }
+
+  .answer-markdown th,
+  .answer-markdown td {
+    min-width: 130px;
+  }
+}

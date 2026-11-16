@@ -1,7 +1,8 @@
 
 import { useState } from "react";
 import "./App.css";
-
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
 function App() {
@@ -181,8 +182,11 @@ async function handleSubmit(event) {
   <section className="result-card">
     <h3>Answer</h3>
 
-    <p className="extracted-text">{answer}</p>
-
+<div className="answer-markdown">
+  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+    {answer}
+  </ReactMarkdown>
+</div>
     {pages.length > 0 && (
       <p className="result-description">
         Relevant PDF pages: {pages.join(", ")}
