@@ -1,5 +1,6 @@
 
 require("dotenv").config();
+const crypto = require("crypto");
 const { pipeline } = require("@huggingface/transformers");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
@@ -40,6 +41,7 @@ app.get("/health", (_req, res) => {
 });
 
 let embeddingPipeline;
+const pdfEmbeddingCache = new Map();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -339,6 +341,7 @@ let chunkIndex = 0;
 for (const page of pages) {
   const pageChunks = chunkText(page.text, 500, 100);
 
+  console.time("PDF extraction");
   for (let i = 0; i < pageChunks.length; i++) {
     chunks[chunkIndex].page = page.page;
     chunkIndex++;
@@ -354,6 +357,7 @@ console.log(
     characters: page.text.length,
   }))
 );
+console.timeEnd("PDF extraction");
 
 
     // 3. Find passages sharing keywords with the question.
@@ -370,40 +374,58 @@ console.log(
       .match(/[a-z0-9]+/g)
       ?.filter(word => !stopWords.has(word)) || [];
 
-   
-const questionEmbedding = await generateEmbedding(question.trim());
+   console.time("Embedding and retrieval");
 
-const embeddedChunks = await Promise.all(
-  chunks.map(async (chunk) => ({
-    ...chunk,
-    embedding: await generateEmbedding(chunk.text),
-  }))
+
+// 1. Get cached PDF chunks and embeddings.
+console.time("PDF extraction and embedding");
+
+const embeddedChunks = await getCachedPdfChunks(
+  req.file.buffer
 );
 
-const rankedChunks = embeddedChunks
-  .map((chunk) => ({
-    ...chunk,
-    score: cosineSimilarity(
-      questionEmbedding,
-      chunk.embedding
-    ),
-  }))
-  .sort((a, b) => b.score - a.score);
+console.log("Total chunks available:", embeddedChunks.length);
 
-// Initial threshold: validate this against your own PDF.
-const MIN_SIMILARITY_SCORE = 0.30;
+console.timeEnd("PDF extraction and embedding");
 
-const relevantChunks = rankedChunks
-  .filter((chunk) => chunk.score >= MIN_SIMILARITY_SCORE)
-  .slice(0, 3);
+// 2. Generate an embedding only for the user's question.
+const intent = await classifyQuestionIntent(question.trim());
 
-console.log(
-  "Semantic retrieval:",
-  relevantChunks.map(({ page, score }) => ({
-    page,
-    score: Number(score.toFixed(4)),
-  }))
-);
+console.log("Question intent:", intent);
+
+let relevantChunks;
+
+if (intent === "overview") {
+  // Use all chunks for a general document overview.
+  relevantChunks = embeddedChunks;
+} else {
+  // Use semantic search for specific questions.
+  console.time("Embedding and retrieval");
+
+  const questionEmbedding = await generateEmbedding(
+    question.trim()
+  );
+
+  const rankedChunks = embeddedChunks
+    .map((chunk) => ({
+      ...chunk,
+      score: cosineSimilarity(
+        questionEmbedding,
+        chunk.embedding
+      ),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const MIN_SIMILARITY_SCORE = 0.30;
+
+  relevantChunks = rankedChunks
+    .filter((chunk) => chunk.score >= MIN_SIMILARITY_SCORE)
+    .slice(0, 3);
+
+  console.timeEnd("Embedding and retrieval");
+}
+
+console.log("Chunks selected:", relevantChunks.length);
 
 if (relevantChunks.length === 0) {
   return res.json({
@@ -412,6 +434,9 @@ if (relevantChunks.length === 0) {
     passagesUsed: 0,
   });
 }
+
+console.time("Groq response");
+
 
 
     // 4. Ask Groq to answer using only retrieved PDF passages.
@@ -449,7 +474,7 @@ ${context}`
       pages: [...new Set(relevantChunks.map(chunk => chunk.page))],
       passagesUsed: relevantChunks.length
     });
-
+console.timeEnd("Groq response");
   } catch (error) {
     console.error("PDF question failed:", error.message);
 
@@ -498,6 +523,85 @@ function cosineSimilarity(a, b) {
   return dotProduct / (
     Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB)
   );
+}
+async function getCachedPdfChunks(pdfBuffer) {
+  // 1. Create a unique fingerprint for this PDF.
+  const pdfHash = crypto
+    .createHash("sha256")
+    .update(pdfBuffer)
+    .digest("hex");
+
+  // 2. If this PDF is already cached, reuse its embeddings.
+  if (pdfEmbeddingCache.has(pdfHash)) {
+    console.log("PDF cache hit: reusing embeddings");
+
+    return pdfEmbeddingCache.get(pdfHash);
+  }
+
+  console.log("PDF cache miss: generating embeddings");
+
+  // 3. Extract the PDF pages.
+  const pages = await extractPdfPages(pdfBuffer);
+
+  // 4. Split text into chunks while preserving page numbers.
+  const chunks = pages.flatMap((page) =>
+    chunkText(page.text, 500, 100).map((text, chunkIndex) => ({
+      page: page.page,
+      chunkIndex,
+      text,
+    }))
+  );
+
+  // 5. Generate each chunk's embedding once.
+  const embeddedChunks = await Promise.all(
+    chunks.map(async (chunk) => ({
+      ...chunk,
+      embedding: await generateEmbedding(chunk.text),
+    }))
+  );
+
+  // 6. Keep at most three PDFs in this simple in-memory cache.
+  if (pdfEmbeddingCache.size >= 3) {
+    const oldestKey = pdfEmbeddingCache.keys().next().value;
+    pdfEmbeddingCache.delete(oldestKey);
+  }
+
+  // 7. Save the completed embeddings.
+  pdfEmbeddingCache.set(pdfHash, embeddedChunks);
+
+  return embeddedChunks;
+}
+
+
+async function classifyQuestionIntent(question) {
+  const completion = await groq.chat.completions.create({
+    model: "openai/gpt-oss-120b",
+    messages: [
+      {
+        role: "system",
+        content: `Classify the user's question about a PDF.
+
+Return exactly one word:
+- overview: the user wants a summary, general explanation,
+  main points, or an overall description of the document.
+- specific: the user asks for a particular fact, detail,
+  number, person, date, or other specific answer.
+
+Return only overview or specific.`
+      },
+      {
+        role: "user",
+        content: question
+      }
+    ],
+    temperature: 0
+  });
+
+  const intent = completion.choices[0].message.content
+    .trim()
+    .toLowerCase();
+
+  return intent === "overview" ? "overview" : "specific";
 }
 
 const port = process.env.PORT || 3000;
