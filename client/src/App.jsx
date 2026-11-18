@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,6 +13,13 @@ const [error, setError] = useState("");
 const [answer, setAnswer] = useState("");
 const [pages, setPages] = useState([]);
 const [messages, setMessages] = useState([]);
+const messagesEndRef = useRef(null);
+useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+  });
+}, [messages, loading]);
   function handleFileChange(event) {
     const selectedFile = event.target.files[0];
 
@@ -229,7 +236,7 @@ async function handleSubmit(event) {
     )}
   </div>
 ))}
-   
+   <div ref={messagesEndRef} />
   </section>
 )}
 

@@ -228,7 +228,7 @@ app.post("/api/pdf/extract", upload.single("pdf"), async (req, res) => {
         error: "Please upload a PDF using the field name 'pdf'.",
       });
     }
-
+    
     console.log("Uploaded file:", req.file.originalname);
     console.log("File size:", req.file.size);
 
@@ -344,7 +344,8 @@ app.post("/api/pdf/ask", upload.single("pdf"), async (req, res) => {
         error: "Please provide a question."
       });
     }
-
+    // Load PDF chunks from Qdrant or generate them if not cached
+    const embeddedChunks = await getCachedPdfChunks(req.file.buffer);
    console.time("Embedding and retrieval");
 
 
@@ -439,6 +440,7 @@ If the answer is unavailable, say:
 "I couldn't find the answer in the provided PDF passages."
 Include page references for factual claims.
 Answer naturally and completely.`
+
     },
     {
       role: "user",
