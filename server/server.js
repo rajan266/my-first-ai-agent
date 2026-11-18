@@ -1,5 +1,25 @@
 
 require("dotenv").config();
+const PDF_COLLECTION = "pdf_chunks";
+
+const { QdrantClient } = require("@qdrant/js-client-rest");
+
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+});
+
+async function testQdrantConnection() {
+  try {
+    const result = await qdrant.getCollections();
+    console.log("Qdrant connected successfully!");
+    console.log("Collections:", result.collections);
+  } catch (error) {
+    console.error("Qdrant connection failed:", error.message);
+  }
+}
+
+testQdrantConnection();
 const crypto = require("crypto");
 const { pipeline } = require("@huggingface/transformers");
 const multer = require("multer");
@@ -325,64 +345,12 @@ app.post("/api/pdf/ask", upload.single("pdf"), async (req, res) => {
       });
     }
 
-    // 1. Extract the PDF text.
-
-const pages = await extractPdfPages(req.file.buffer);
-
-const chunks = chunkPdfPages(
-  pages.map((page) => page.text),
-  500,
-  100
-);
-
-// Restore the original page numbers on every chunk.
-let chunkIndex = 0;
-
-for (const page of pages) {
-  const pageChunks = chunkText(page.text, 500, 100);
-
-  console.time("PDF extraction");
-  for (let i = 0; i < pageChunks.length; i++) {
-    chunks[chunkIndex].page = page.page;
-    chunkIndex++;
-  }
-}
-
-console.log("PDF pages detected:", pages.length);
-console.log("Total chunks created:", chunks.length);
-console.log(
-  "Pages extracted:",
-  pages.map((page) => ({
-    page: page.page,
-    characters: page.text.length,
-  }))
-);
-console.timeEnd("PDF extraction");
-
-
-    // 3. Find passages sharing keywords with the question.
-    const stopWords = new Set([
-      "what", "when", "where", "which", "who",
-      "was", "were", "is", "are", "the", "a",
-      "an", "of", "for", "to", "in", "on",
-      "and", "or", "how", "much", "many",
-      "tell", "me", "about", "does", "did"
-    ]);
-
-    const keywords = question
-      .toLowerCase()
-      .match(/[a-z0-9]+/g)
-      ?.filter(word => !stopWords.has(word)) || [];
-
    console.time("Embedding and retrieval");
 
 
 // 1. Get cached PDF chunks and embeddings.
 console.time("PDF extraction and embedding");
 
-const embeddedChunks = await getCachedPdfChunks(
-  req.file.buffer
-);
 
 console.log("Total chunks available:", embeddedChunks.length);
 
@@ -393,39 +361,54 @@ const intent = await classifyQuestionIntent(question.trim());
 
 console.log("Question intent:", intent);
 
+
 let relevantChunks;
 
 if (intent === "overview") {
-  // Use all chunks for a general document overview.
+  // Keep your existing overview behavior.
   relevantChunks = embeddedChunks;
 } else {
-  // Use semantic search for specific questions.
   console.time("Embedding and retrieval");
 
+  // Generate an embedding for the question.
   const questionEmbedding = await generateEmbedding(
     question.trim()
   );
 
-  const rankedChunks = embeddedChunks
-    .map((chunk) => ({
-      ...chunk,
-      score: cosineSimilarity(
-        questionEmbedding,
-        chunk.embedding
-      ),
-    }))
-    .sort((a, b) => b.score - a.score);
+  // Identify this exact PDF.
+  const pdfHash = crypto
+    .createHash("sha256")
+    .update(req.file.buffer)
+    .digest("hex");
 
-  const MIN_SIMILARITY_SCORE = 0.30;
+  // Ask Qdrant to find the most relevant chunks.
+  const searchResult = await qdrant.query(PDF_COLLECTION, {
+    query: questionEmbedding,
+    filter: {
+      must: [
+        {
+          key: "pdfHash",
+          match: { value: pdfHash },
+        },
+      ],
+    },
+    limit: 3,
+    score_threshold: 0.30,
+    with_payload: true,
+  });
 
-  relevantChunks = rankedChunks
-    .filter((chunk) => chunk.score >= MIN_SIMILARITY_SCORE)
-    .slice(0, 3);
+  // Convert Qdrant results to the format your existing
+  // answer-generation code already expects.
+  relevantChunks = searchResult.points.map((point) => ({
+    page: point.payload.page,
+    chunkIndex: point.payload.chunkIndex,
+    text: point.payload.text,
+    score: point.score,
+  }));
 
   console.timeEnd("Embedding and retrieval");
 }
 
-console.log("Chunks selected:", relevantChunks.length);
 
 if (relevantChunks.length === 0) {
   return res.json({
@@ -434,9 +417,6 @@ if (relevantChunks.length === 0) {
     passagesUsed: 0,
   });
 }
-
-console.time("Groq response");
-
 
 console.time("Groq response");
 
@@ -588,8 +568,13 @@ res.json({
 });
   }
  catch (error) {
-    console.error("PDF question failed:", error.message);
-
+console.error("PDF question failed:", {
+  message: error.message,
+  status: error.status,
+  statusText: error.statusText,
+  data: error.data,
+  responseData: error.response?.data,
+});
     res.status(500).json({
       error: "Unable to answer the PDF question."
     });
@@ -636,6 +621,7 @@ function cosineSimilarity(a, b) {
     Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB)
   );
 }
+
 async function getCachedPdfChunks(pdfBuffer) {
   // 1. Create a unique fingerprint for this PDF.
   const pdfHash = crypto
@@ -643,19 +629,49 @@ async function getCachedPdfChunks(pdfBuffer) {
     .update(pdfBuffer)
     .digest("hex");
 
-  // 2. If this PDF is already cached, reuse its embeddings.
+  // 2. Reuse the in-memory cache if available.
   if (pdfEmbeddingCache.has(pdfHash)) {
     console.log("PDF cache hit: reusing embeddings");
-
     return pdfEmbeddingCache.get(pdfHash);
   }
 
-  console.log("PDF cache miss: generating embeddings");
+  console.log("PDF cache miss: checking Qdrant");
 
-  // 3. Extract the PDF pages.
+  // 3. Check whether this PDF's chunks already exist in Qdrant.
+  const existing = await qdrant.scroll(PDF_COLLECTION, {
+    filter: {
+      must: [
+        {
+          key: "pdfHash",
+          match: { value: pdfHash },
+        },
+      ],
+    },
+    limit: 1000,
+    with_payload: true,
+    with_vector: true,
+  });
+
+  // 4. Reuse stored vectors instead of generating them again.
+  if (existing.points.length > 0) {
+    console.log("Qdrant hit: reusing stored embeddings");
+
+    const storedChunks = existing.points.map((point) => ({
+      page: point.payload.page,
+      chunkIndex: point.payload.chunkIndex,
+      text: point.payload.text,
+      embedding: point.vector,
+    }));
+
+    pdfEmbeddingCache.set(pdfHash, storedChunks);
+    return storedChunks;
+  }
+
+  console.log("Qdrant miss: extracting PDF and generating embeddings");
+
+  // 5. Extract pages and split the text into chunks.
   const pages = await extractPdfPages(pdfBuffer);
 
-  // 4. Split text into chunks while preserving page numbers.
   const chunks = pages.flatMap((page) =>
     chunkText(page.text, 500, 100).map((text, chunkIndex) => ({
       page: page.page,
@@ -664,7 +680,7 @@ async function getCachedPdfChunks(pdfBuffer) {
     }))
   );
 
-  // 5. Generate each chunk's embedding once.
+  // 6. Generate embeddings.
   const embeddedChunks = await Promise.all(
     chunks.map(async (chunk) => ({
       ...chunk,
@@ -672,13 +688,37 @@ async function getCachedPdfChunks(pdfBuffer) {
     }))
   );
 
-  // 6. Keep at most three PDFs in this simple in-memory cache.
+  // 7. Store vectors and their PDF metadata in Qdrant.
+  if (embeddedChunks.length > 0) {
+    await qdrant.upsert(PDF_COLLECTION, {
+      wait: true,
+      points: embeddedChunks.map((chunk) => ({
+        id: crypto
+          .createHash("sha256")
+          .update(`${pdfHash}:${chunk.page}:${chunk.chunkIndex}`)
+          .digest("hex")
+          .slice(0, 32),
+        vector: chunk.embedding,
+        payload: {
+          pdfHash,
+          page: chunk.page,
+          chunkIndex: chunk.chunkIndex,
+          text: chunk.text,
+        },
+      })),
+    });
+
+    console.log(
+      `Stored ${embeddedChunks.length} PDF chunks in Qdrant`
+    );
+  }
+
+  // 8. Preserve the existing in-memory cache, limited to three PDFs.
   if (pdfEmbeddingCache.size >= 3) {
     const oldestKey = pdfEmbeddingCache.keys().next().value;
     pdfEmbeddingCache.delete(oldestKey);
   }
 
-  // 7. Save the completed embeddings.
   pdfEmbeddingCache.set(pdfHash, embeddedChunks);
 
   return embeddedChunks;
@@ -715,6 +755,41 @@ Return only overview or specific.`
 
   return intent === "overview" ? "overview" : "specific";
 }
+async function createPdfCollection() {
+  try {
+    const collections = await qdrant.getCollections();
+
+    const collectionExists = collections.collections.some(
+      (collection) => collection.name === PDF_COLLECTION
+    );
+
+await qdrant.createPayloadIndex("pdf_chunks", {
+  field_name: "pdfHash",
+  field_schema: "keyword",
+  wait: true,
+});
+
+console.log("Qdrant payload index created: pdfHash");
+
+    if (!collectionExists) {
+      await qdrant.createCollection(PDF_COLLECTION, {
+        vectors: {
+          size: 384,
+          distance: "Cosine",
+        },
+      });
+
+      console.log("Qdrant collection created:", PDF_COLLECTION);
+    } else {
+      console.log("Qdrant collection already exists:", PDF_COLLECTION);
+    }
+  } catch (error) {
+    console.error("Failed to create Qdrant collection:", error.message);
+  }
+}
+
+createPdfCollection();
+
 
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => {

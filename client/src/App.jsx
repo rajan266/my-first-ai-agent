@@ -12,6 +12,7 @@ const [loading, setLoading] = useState(false);
 const [error, setError] = useState("");
 const [answer, setAnswer] = useState("");
 const [pages, setPages] = useState([]);
+const [messages, setMessages] = useState([]);
   function handleFileChange(event) {
     const selectedFile = event.target.files[0];
 
@@ -29,13 +30,21 @@ const [pages, setPages] = useState([]);
       return;
     }
 
-    setFile(selectedFile);
+setFile(selectedFile);
+setMessages([]);
+setAnswer("");
+setPages([]);
+setError("");
   }
 
  
 
+
+
 async function handleSubmit(event) {
   event.preventDefault();
+
+  if (loading) return;
 
   if (!file) {
     setError("Please upload a PDF first.");
@@ -47,20 +56,43 @@ async function handleSubmit(event) {
     return;
   }
 
+  const currentQuestion = question.trim();
+  const assistantMessageId = crypto.randomUUID();
+
+  setQuestion("");
   setLoading(true);
   setError("");
-  setAnswer("");
   setPages([]);
+
+  // Show the user's question immediately and add
+  // one empty agent message for the incoming answer.
+  setMessages((previous) => [
+    ...previous,
+    {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: currentQuestion,
+    },
+    {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+    },
+  ]);
 
   try {
     const formData = new FormData();
     formData.append("pdf", file);
-    formData.append("question", question.trim());
+    formData.append("question", currentQuestion);
+    formData.append("history", JSON.stringify(messages));
 
-    const response = await fetch(`${API_BASE_URL}/api/pdf/ask`, {
-      method: "POST",
-      body: formData,
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/pdf/ask`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
 
     const data = await response.json();
 
@@ -70,9 +102,28 @@ async function handleSubmit(event) {
       );
     }
 
-    setAnswer(data.answer || "No answer was returned.");
+    const assistantAnswer =
+      data.answer || "No answer was returned.";
+
+    // Update only this question's agent message.
+    setMessages((previous) =>
+      previous.map((message) =>
+        message.id === assistantMessageId
+          ? { ...message, content: assistantAnswer }
+          : message
+      )
+    );
+
+    setAnswer(assistantAnswer);
     setPages(data.pages || []);
   } catch (err) {
+    // Remove the empty agent message if the request fails.
+    setMessages((previous) =>
+      previous.filter(
+        (message) => message.id !== assistantMessageId
+      )
+    );
+
     setError(err.message || "Something went wrong.");
   } finally {
     setLoading(false);
@@ -80,8 +131,11 @@ async function handleSubmit(event) {
 }
 
 
+
+
   return (
-    <div className="app">
+   <div className="app">
+    <div className="chat-panel">
       <header className="header">
         <div className="brand">
           <div className="brand-icon">✦</div>
@@ -107,125 +161,125 @@ async function handleSubmit(event) {
           </p>
         </section>
 
-        <form className="agent-card" onSubmit={handleSubmit}>
-          <label className="section-label">
-            1. Upload your PDF
-          </label>
+<section className="agent-card">
+     
 
-          <label className="upload-area">
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={handleFileChange}
-            />
 
-            <div className="upload-icon">↑</div>
-            <strong>
-              {file ? file.name : "Choose a PDF to get started"}
-            </strong>
-            <span>
-              {file
-                ? `${(file.size / 1024).toFixed(1)} KB`
-                : "Click here to browse · Maximum 10 MB"}
-            </span>
-          </label>
+<div className="compact-pdf-upload">
+  <label className="section-label">
+    Document
+  </label>
 
-          {file && (
-            <button
-              type="button"
-              className="remove-file"
-              onClick={() => setFile(null)}
-            >
-              Remove PDF
-            </button>
-          )}
+  <div className="pdf-file-row">
+    <label className="pdf-upload-clickable">
+      <input
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={handleFileChange}
+      />
 
-          <label className="section-label question-label">
-            2. Ask a question
-          </label>
+      <span className="pdf-upload-icon">↑</span>
 
-          <textarea
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Example: What was the initial project budget?"
-            rows={4}
-          />
+      <span className="pdf-filename" title={file?.name || ""}>
+        {file ? file.name : "Choose a PDF or click here to upload"}
+      </span>
 
-         <button
-  className="ask-button"
-  type="submit"
-  disabled={loading}
->
-  {loading ? "Searching PDF and generating answer..." : "✦ Ask PDF Agent"}
-</button>
+      {!file && (
+        <span className="pdf-hint">Up to 10 MB</span>
+      )}
+    </label>
 
-          <p className="privacy-note">
-            Your answers will be generated from relevant passages
-            in your uploaded document.
-          </p>
-        </form>
+    {file && (
+      <button
+        type="button"
+        className="remove-file"
+        onClick={() => {
+          setFile(null);
+          setMessages([]);
+          setAnswer("");
+          setPages([]);
+          setQuestion("");
+          setError("");
+        }}
+      >
+        Remove
+      </button>
+    )}
+  </div>
+</div>
 
+{messages.length > 0 && (
+  <section className="chat-container">
+   
+
+   {messages.map((message, index) => (
+  <div
+    key={message.id}
+    className={`chat-message ${message.role}`}
+  >
+    {message.role === "assistant" && !message.content && loading ? (
+      <div className="simple-loader">
+        <span className="loader-spinner" />
+        <span>Thinking...</span>
+      </div>
+    ) : (
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {message.content}
+      </ReactMarkdown>
+    )}
+  </div>
+))}
+   
+  </section>
+)}
+
+ 
+
+          
+
+      
+
+</section>
 {error && (
   <div className="result-error" role="alert">
     {error}
   </div>
 )}
 
-{loading && (
-  <div className="result-card">
-    Extracting text from your PDF...
-  </div>
-)}
 
 
-{answer && (
-  <section className="result-card">
-    <h3>Answer</h3>
-
-<div className="answer-markdown">
-  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-    {answer}
-  </ReactMarkdown>
-</div>
-    {pages.length > 0 && (
-      <p className="result-description">
-        Relevant PDF pages: {pages.join(", ")}
-      </p>
-    )}
-  </section>
-)}
 
 
-        <section className="features">
-          <div className="feature">
-            <span>⌕</span>
-            <div>
-              <strong>Relevant passages</strong>
-              <p>Search the document before answering.</p>
-            </div>
-          </div>
 
-          <div className="feature">
-            <span>▤</span>
-            <div>
-              <strong>Page references</strong>
-              <p>See where the answer came from.</p>
-            </div>
-          </div>
 
-          <div className="feature">
-            <span>✦</span>
-            <div>
-              <strong>Groq-powered AI</strong>
-              <p>Get answers grounded in your PDF.</p>
-            </div>
-          </div>
-        </section>
+
+
+
+<form className="chat-input-form" onSubmit={handleSubmit}>
+  <input
+    className="chat-input"
+    value={question}
+    onChange={(e) => setQuestion(e.target.value)}
+    placeholder="Ask anything about your PDF..."
+    rows={1}
+    disabled={loading}
+  />
+
+  <button
+    type="submit"
+    className="chat-send-button"
+    disabled={loading || !file || !question.trim()}
+    aria-label="Send question"
+  >
+    {loading ? "..." : "↑"}
+  </button>
+</form>
+
+<p className="chat-input-hint">
+  Answers are based on your uploaded PDF.
+</p>
       </main>
-
-      <footer>
-        Built with React, Node.js and Groq
-      </footer>
+</div>
     </div>
   );
 }

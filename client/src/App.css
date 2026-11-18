@@ -90,7 +90,6 @@ textarea {
 
 .hero {
   text-align: center;
-  padding: 58px 0 32px;
 }
 
 .eyebrow {
@@ -406,5 +405,452 @@ footer {
   .answer-markdown th,
   .answer-markdown td {
     min-width: 130px;
+  }
+}
+
+.chat-container {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-container h3 {
+  margin: 0;
+}
+
+.chat-message {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  overflow-wrap: anywhere;
+}
+
+.chat-message.user {
+  background: var(--user-message-bg, #f3f4f6);
+}
+
+.chat-message.assistant {
+  background: var(--assistant-message-bg, #ffffff);
+}
+
+.chat-message strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.compact-pdf-upload {
+  margin-bottom: 20px;
+}
+
+
+.pdf-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 14px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pdf-upload-clickable {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  cursor: pointer;
+}
+
+.pdf-upload-clickable input[type="file"] {
+  display: none !important;
+}
+
+.pdf-upload-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.pdf-filename {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: #374151;
+}
+
+.pdf-hint {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.pdf-upload-clickable:hover {
+  opacity: 0.75;
+}
+
+.pdf-file-row .remove-file {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 5px 8px;
+}
+
+@media (max-width: 480px) {
+  .pdf-upload-clickable {
+    gap: 6px;
+  }
+
+  .pdf-hint {
+    display: none;
+  }
+
+  .pdf-filename {
+    font-size: 12px;
+  }
+}
+
+.chat-input-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 140px;
+  padding: 10px 4px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  font: inherit;
+}
+
+.chat-input-form .chat-send-button {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: #2563eb;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.chat-input-form .chat-send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-input-hint {
+  margin: 8px 0 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #777;
+}
+
+
+/* Conversation layout */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.chat-container h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+/* Keep each message on its own row */
+.chat-message {
+  width: fit-content;
+  max-width: 65%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+/* User messages on the left */
+.chat-message.user {
+  align-self: flex-start;
+  background: #f1f5f9;
+  color: #1f2937;
+  border-bottom-left-radius: 4px;
+}
+
+/* Agent messages on the right */
+.chat-message.assistant {
+  align-self: flex-end;
+  background: #e8f0ff;
+  color: #1e3a8a;
+  border-bottom-right-radius: 4px;
+}
+
+/* Compact sender label */
+.chat-message strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* Reduce extra Markdown spacing inside bubbles */
+.chat-message .answer-markdown p {
+  margin: 4px 0;
+}
+
+.chat-message .answer-markdown p:first-child {
+  margin-top: 0;
+}
+
+.chat-message .answer-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message .answer-markdown ul,
+.chat-message .answer-markdown ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.chat-message .result-description {
+  margin: 8px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #cbd5e1;
+  font-size: 11px;
+  color: #64748b;
+}
+
+@media (max-width: 600px) {
+  .chat-message {
+    max-width: 85%;
+    padding: 9px 11px;
+  }
+}
+
+/* Keep message bubbles compact */
+.chat-message {
+  width: fit-content;
+  max-width: 65%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: #b8c2d1 transparent;
+}
+
+/* Keep long words and code inside the bubble */
+.chat-message .answer-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Allow wide tables and code blocks to scroll horizontally */
+.chat-message .answer-markdown table,
+.chat-message .answer-markdown pre {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Chrome, Edge and Safari scrollbar */
+.chat-message::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-message::-webkit-scrollbar-thumb {
+  background: #b8c2d1;
+  border-radius: 10px;
+}
+
+.chat-message::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .chat-message {
+    max-width: 85%;
+    max-height: 180px;
+  }
+}
+
+/* Overall page */
+.app {
+  box-sizing: border-box;
+  height: 100dvh;
+  padding: 16px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+/* One unified application panel */
+.chat-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Header stays inside the panel */
+.chat-panel > .header {
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+/* Main content scrolls inside the panel */
+.chat-panel > .main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: 20px 24px 130px;
+}
+
+/* Compact introduction */
+.chat-panel .hero {
+  margin-bottom: 18px;
+}
+
+.chat-panel .hero h2 {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  font-size: 24px;
+}
+
+.chat-panel .hero p {
+  margin-top: 0;
+}
+
+/* Compact document section */
+.chat-panel .agent-card {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
+/* Conversation */
+.chat-panel .chat-container {
+  max-height: none;
+  overflow: visible;
+  margin: 16px 0;
+}
+
+/* Input anchored inside the panel */
+.chat-panel .chat-input-form {
+  position: absolute;
+  bottom: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 48px);
+  max-width: 760px;
+  box-sizing: border-box;
+  z-index: 5;
+  margin: 0;
+  background: #fff;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.12);
+}
+
+/* Hint also stays inside the panel */
+.chat-panel .chat-input-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  z-index: 5;
+  background: #fff;
+}
+
+/* Keep errors and loading messages inside the panel */
+.chat-panel .result-error,
+.chat-panel .result-card {
+  margin: 12px 0;
+}
+
+@media (max-width: 600px) {
+  .app {
+    padding: 0;
+  }
+
+  .chat-panel {
+    border-radius: 0;
+    border: none;
+  }
+
+  .chat-panel > .header {
+    padding: 12px 14px;
+  }
+
+  .chat-panel > .main {
+    padding: 14px 12px 120px;
+  }
+
+  .chat-panel .chat-input-form {
+    bottom: 34px;
+    width: calc(100% - 24px);
+  }
+
+  .chat-panel .chat-input-hint {
+    bottom: 10px;
+  }
+
+  .chat-panel .hero h2 {
+    font-size: 20px;
+  }
+}
+
+.simple-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px;
+  font-size: 14px;
+  color: #555;
+}
+
+.loader-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: loader-spin 0.7s linear infinite;
+}
+
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
