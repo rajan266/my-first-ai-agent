@@ -14,35 +14,46 @@ const [answer, setAnswer] = useState("");
 const [pages, setPages] = useState([]);
 const [messages, setMessages] = useState([]);
 const messagesEndRef = useRef(null);
+const [pdfUrl, setPdfUrl] = useState("");
 useEffect(() => {
   messagesEndRef.current?.scrollIntoView({
     behavior: "smooth",
     block: "end",
   });
 }, [messages, loading]);
-  function handleFileChange(event) {
-    const selectedFile = event.target.files[0];
+  
+function handleFileChange(event) {
+  const selectedFile = event.target.files[0];
 
-    if (!selectedFile) return;
+  if (!selectedFile) return;
 
-    if (selectedFile.type !== "application/pdf") {
-      alert("Please select a PDF file.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      alert("PDF size must be 10 MB or less.");
-      event.target.value = "";
-      return;
-    }
-
-setFile(selectedFile);
-setMessages([]);
-setAnswer("");
-setPages([]);
-setError("");
+  if (selectedFile.type !== "application/pdf") {
+    alert("Please select a PDF file.");
+    event.target.value = "";
+    return;
   }
+
+  if (selectedFile.size > 10 * 1024 * 1024) {
+    alert("PDF size must be 10 MB or less.");
+    event.target.value = "";
+    return;
+  }
+
+  setPdfUrl((previousUrl) => {
+    if (previousUrl) {
+      URL.revokeObjectURL(previousUrl);
+    }
+
+    return URL.createObjectURL(selectedFile);
+  });
+
+  setFile(selectedFile);
+  setMessages([]);
+  setAnswer("");
+  setPages([]);
+  setError("");
+}
+
 
  
 
@@ -230,9 +241,39 @@ async function handleSubmit(event) {
         <span>Thinking...</span>
       </div>
     ) : (
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-        {message.content}
-      </ReactMarkdown>
+    
+<ReactMarkdown
+  remarkPlugins={[remarkGfm]}
+  components={{
+    a: ({ href, children }) => {
+      if (href?.startsWith("#page-")) {
+        const page = href.replace("#page-", "");
+
+        return (
+          <button
+            type="button"
+            className="citation-link"
+            onClick={() => {
+  if (!pdfUrl) {
+    setError("Please upload the PDF again.");
+    return;
+  }
+
+  window.open(`${pdfUrl}#page=${page}`, "_blank");
+}}
+          >
+            {children}
+          </button>
+        );
+      }
+
+      return <a href={href}>{children}</a>;
+    },
+  }}
+>
+  {formatCitations(message.content)}
+</ReactMarkdown>
+
     )}
   </div>
 ))}
@@ -292,3 +333,11 @@ async function handleSubmit(event) {
 }
 
 export default App;
+
+
+function formatCitations(text) {
+  return text.replace(
+    /\s*\[Page\s+(\d+)\]/g,
+    " [Page $1](#page-$1)"
+  );
+}
